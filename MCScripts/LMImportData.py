@@ -45,8 +45,8 @@ def RunZISImport():
     lme=LeakageMonitorEngine()
     executer_sql=SqlExecuter()
     #logging.basicConfig(filename='C:\\_Model\\logfile_ZIS.txt',level=logging.DEBUG,format='%(asctime)s %(message)s',datefmt='%m/%d/%Y %I:%M:%S %p')
-    logFile=r'C:\_Model\logfile_NRW.txt'
-    logFileObj=open(logFile, 'w')
+    logFile='c:\\_Model\\logfile_ZIS.txt'
+    logFileObj=open(logFile, 'r+')
     #logging.info('Spouštím import dat ZIS ...') 
     #prepare variables
     dataLocation = r'C:\DHI\LM\VST\USYS-DHI'
@@ -54,7 +54,8 @@ def RunZISImport():
     
     # load tables and data to variables
     # backup - sensorTableLM=lme.getSensorsDataTableMC()
-    sql = 'SELECT timeserieid, MAX(measureddata.time) FROM "LeakMonitorApp".measureddata WHERE timeserieid < 40 GROUP BY timeserieid ORDER BY timeserieid;'
+    #sql = 'SELECT timeserieid, MAX(measureddata.time) FROM "LeakMonitorApp".measureddata WHERE timeserieid < 40 GROUP BY timeserieid ORDER BY timeserieid;'
+    sql = 'SELECT id, name, sourceid FROM "LeakMonitorApp".timeseries WHERE tstypeid = 6 ORDER BY id;'
     executer_sql.Execute(sql)
     sensorTable=executer_sql.ResultTable
     folderList=[x[0] for x in os.walk(dataLocation)]
@@ -67,33 +68,39 @@ def RunZISImport():
         elif date(int(folderDate.split('_')[0]),int(folderDate.split('_')[1]),1) > folderDateMax:
             folderDateMax=date(int(folderDate.split('_')[0]),int(folderDate.split('_')[1]),1)
     print(str(datetime.date.today())+' / Spouštím import dat ZIS ...') 
-    logFileObj.writelines(str(datetime.date.today())+' / Spouštím import dat ZIS ...')
+    logFileObj.write(str(datetime.date.today())+' - Spouštím import dat ZIS ...'.encode('utf-16')+'\n')
+    
     
     # start iterating sensors data
     for sensor in sensorTable.Rows:
-        sql = 'SELECT id, name, sourceid FROM "LeakMonitorApp".timeseries WHERE sourceid='+str(sensor.ItemArray[0])
+        sql = 'SELECT timeserieid, MAX(measureddata.time) FROM "LeakMonitorApp".measureddata WHERE timeserieid = '+str(sensor.ItemArray[2])+' GROUP BY timeserieid ORDER BY timeserieid;'
         executer_sql.Execute(sql)
         tserieTable=executer_sql.ResultTable
+        tserieName=sensor.ItemArray[1]
         # connect sensor with time serie data
         for tserie in tserieTable.Rows:
-            tserieName=tserie.ItemArray[1]    
-            tserieLastUpdate=date(sensor.ItemArray[1].Year, sensor.ItemArray[1].Month,1)
+            tserieLastUpdate=date(tserie.ItemArray[1].Year, tserie.ItemArray[1].Month,1)
             #logging.info('TS id:'+str(tserie.ItemArray[2])+' - '+tserie.ItemArray[1])
-            print('sid: '+str(sensor.ItemArray[0])+' TS id: '+str(tserie.ItemArray[0])+' - '+tserieName+' (naposledy aktualizovano pro datum '+str(tserieLastUpdate)+')')
+            print('sid: '+str(tserie.ItemArray[0])+' TS id: '+str(sensor.ItemArray[0])+' - '+tserieName+' (naposledy aktualizovano pro datum '+str(tserieLastUpdate)+')')
+            logFileObj.write('sid: '+str(tserie.ItemArray[0])+' TS id: '+str(sensor.ItemArray[0])+' - '+tserieName.encode('utf-8')+' (naposledy aktualizováno pro datum '.encode('utf-8')+str(tserieLastUpdate)+')\n')
             # find new data in folder
             if add_months(folderDateMax,1)==tserieLastUpdate:
                 print('¨¨¨v databazi jsou k dispozici nejnovejsi data...')
+                logFileObj.write('¨¨¨v databázi jsou k dispozici nejnovejší data...'.encode('utf-16')+'\n')
             elif add_months(folderDateMax,1)>tserieLastUpdate:
-                print('¨¨¨nalezeny novejsi data, spoustim import...')
                 for folderDate in folderDatesList:
                     if add_months(folderDate,1)>tserieLastUpdate:
                         folderPath=dataLocation+'\\'+str(folderDate.year)+'_'+str('{:02}'.format(folderDate.month))
-                        print('¨¨¨slozka v ceste: '+folderPath)
+                        print('¨¨¨nalezeny novejsi data, spoustim import ze slozky: '+folderPath)
+                        logFileObj.write('¨¨¨nalezeny novější data, spouštím import ze složky: '.encode('utf-16')+folderPath+'\n')
                         sArea = folderPath+'\DHI-OBLASTI.csv'
                         sCons = folderPath+'\DHI-SPOTREBY.csv'
-                        ImportValues(sArea, sCons, logFileObj)
+                        ImportValues(sensor.ItemArray[0], sArea, sCons, logFileObj)
             else:
                 print('¨¨¨data z budoucnosti...')
+                logFileObj.write('¨¨¨data z budoucnosti...'.encode('utf-16')+'\n')
+                
+    logFileObj.close()
 
 def RunDataloggerImport():
     """
@@ -107,15 +114,16 @@ def RunDataloggerImport():
     executer_sql=SqlExecuter()
     #logging.basicConfig(filename='C:\\_Model\\logfile_ZIS.txt',level=logging.DEBUG,format='%(asctime)s %(message)s',datefmt='%m/%d/%Y %I:%M:%S %p')
     #logging.info('Spouštím import dat ZIS ...') 
-    logFile=r'C:\_Model\logfile_NRW.txt'
-    logFileObj=open(logFile, 'w')
+    logFile='c:\\_Model\\logfile_NRW.txt'
+    logFileObj=open(logFile, 'r+')
     #prepare variables
     dataLocation = r'C:\DHI\LM\VST\USYS-DHI'
     runDate=datetime.date.today().strftime("20%y_%m")
     
     # load tables and data to variables
     # backup - sensorTableLM=lme.getSensorsDataTableMC()
-    sql = 'SELECT timeserieid, MAX(measureddata.time) FROM "LeakMonitorApp".measureddata WHERE timeserieid > 182 and timeserieid < 188 GROUP BY timeserieid ORDER BY timeserieid;'
+    #sql = 'SELECT timeserieid, MAX(measureddata.time) FROM "LeakMonitorApp".measureddata WHERE timeserieid > 182 and timeserieid < 188 GROUP BY timeserieid ORDER BY timeserieid;'
+    sql = 'SELECT id, name, sourceid FROM "LeakMonitorApp".timeseries WHERE tstypeid = 5 ORDER BY id;'
     executer_sql.Execute(sql)
     sensorTable=executer_sql.ResultTable
     folderList=[x[0] for x in os.walk(dataLocation)]
@@ -128,36 +136,41 @@ def RunDataloggerImport():
         elif date(int(folderDate.split('_')[0]),int(folderDate.split('_')[1]),1) > folderDateMax:
             folderDateMax=date(int(folderDate.split('_')[0]),int(folderDate.split('_')[1]),1)
     print(str(datetime.date.today())+' / Spouštím import dat Datalogerů ...') 
-    logFileObj.writelines(str(datetime.date.today())+' / Spouštím import dat Datalogerů ...')
+    logFileObj.write(str(datetime.date.today())+' / Spouštím import dat Datalogerů ...'.encode('utf-16')+'\n')
     
     # start iterating sensors data
     for sensor in sensorTable.Rows:
-        sql = 'SELECT id, name, sourceid FROM "LeakMonitorApp".timeseries WHERE sourceid='+str(sensor.ItemArray[0])
+        sql = 'SELECT timeserieid, MAX(measureddata.time) FROM "LeakMonitorApp".measureddata WHERE timeserieid = '+str(sensor.ItemArray[2])+' GROUP BY timeserieid ORDER BY timeserieid;'
         executer_sql.Execute(sql)
         tserieTable=executer_sql.ResultTable
+        tserieName=sensor.ItemArray[1]
         # connect sensor with time serie data
         for tserie in tserieTable.Rows:
-            tserieName=tserie.ItemArray[1]    
-            tserieLastUpdate=date(sensor.ItemArray[1].Year, sensor.ItemArray[1].Month,1)
+            tserieLastUpdate=date(tserie.ItemArray[1].Year, tserie.ItemArray[1].Month,1)
             #logging.info('TS id:'+str(tserie.ItemArray[2])+' - '+tserie.ItemArray[1])
-            print('sid: '+str(sensor.ItemArray[0])+' TS id: '+str(tserie.ItemArray[0])+' - '+tserieName+' (naposledy aktualizovano pro datum '+str(tserieLastUpdate)+')')
+            print('sid: '+str(tserie.ItemArray[0])+' TS id: '+str(sensor.ItemArray[0])+' - '+tserieName+' (naposledy aktualizovano pro datum '+str(tserieLastUpdate)+')')
+            logFileObj.write('sid: '+str(tserie.ItemArray[0])+' TS id: '+str(sensor.ItemArray[0])+' - '+tserieName.encode('utf-8')+' (naposledy aktualizováno pro datum '.encode('utf-16')+str(tserieLastUpdate)+')\n')
             # find new data in folder
             if add_months(folderDateMax,1)==tserieLastUpdate:
                 print('¨¨¨v databazi jsou k dispozici nejnovejsi data...')
+                logFileObj.write('¨¨¨v databázi jsou k dispozici nejnovejší data...'.encode('utf-16')+'\n')
             elif add_months(folderDateMax,1)>tserieLastUpdate:
-                print('¨¨¨nalezeny novejsi data, spoustim import...')
                 for folderDate in folderDatesList:
                     if add_months(folderDate,1)>tserieLastUpdate:
                         folderPath=dataLocation+'\\'+str(folderDate.year)+'_'+str('{:02}'.format(folderDate.month))
-                        print('¨¨¨slozka v ceste: '+folderPath)
+                        print('¨¨¨nalezeny novejsi data, spoustim import ze slozky: '+folderPath)
+                        logFileObj.write('¨¨¨nalezeny novější data, spouštím import ze složky: '.encode('utf-16')+folderPath+'\n')
                         sArea = folderPath+'\DHI-OBLAST-SZTD.csv'
                         sCons = folderPath+'\DHI-SZTD.csv'
-                        ImportValues(sArea, sCons, logFileObj)
+                        ImportValues(sensor.ItemArray[0], sArea, sCons, logFileObj)
             else:
                 print('¨¨¨data z budoucnosti...')
+                logFileObj.write('¨¨¨data z budoucnosti...'.encode('utf-16')+'\n')
+                
+    logFileObj.close()
     
-def ImportValues(csv_merne_okrsky, csv_merne_mista, logFileObj):
-    final_table = CreateTable(csv_merne_okrsky, csv_merne_mista, logFileObj)    
+def ImportValues(sID, csv_merne_okrsky, csv_merne_mista, logFileObj):
+    final_table = CreateTable(sID, csv_merne_okrsky, csv_merne_mista)    
     items = []
         
     for a in xrange(len(final_table)):    
@@ -165,6 +178,7 @@ def ImportValues(csv_merne_okrsky, csv_merne_mista, logFileObj):
         time_mo = "'" + final_table[a][2] + "'"
         value_mo = final_table[a][1] / 86.4
         print timeserie_id_mo, time_mo, value_mo
+        logFileObj.write('¨¨¨data pro vložení : (%s, %s, %s)'.encode('utf-8') % (timeserie_id_mo, time_mo, value_mo))
         item1 = 'INSERT INTO "LeakMonitorApp".measureddata (timeserieid, time, value) VALUES (%s, %s, %s)' % (timeserie_id_mo, time_mo, value_mo)
         items.append(item1)
     
@@ -183,8 +197,7 @@ def ImportValues(csv_merne_okrsky, csv_merne_mista, logFileObj):
             
         print '---------------------------' 
 
-def CreateTable(csv_mo, csv_mm, logfile):
-    log_file_open = open(logfile.name, 'w')
+def CreateTable(sID, csv_mo, csv_mm):
     
     #    list mernych okrsku
     list_MO_all = []
@@ -284,7 +297,7 @@ def CreateTable(csv_mo, csv_mm, logfile):
         if not MO_id.strip():
             MO_id = 'None'
             continue
-        else:
+        elif int(sID)==int(MO_id):
             spotreba_total = invoice_water_list[h][1]
             final_table.append([MO_id, spotreba_total, first_day])
             #final_table.append([MO_id, spotreba_total, last_day])
