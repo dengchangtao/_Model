@@ -1,0 +1,16 @@
+--- Stáří vodovodu z nekovových materiálů
+N10: IIf((Now()-[nr_report].[cdate])/365>50,IIf([HelpMaterial].[Metal]=False,[Points Age],Null),Null)
+N8: IIf((Now()-[nr_report].[cdate])/365>40 And (Now()-[nr_report].[cdate])/365<=50,IIf([HelpMaterial].[Metal]=False,[Points Age],Null),Null)
+N5: IIf((Now()-[nr_report].[cdate])/365>20 And (Now()-[nr_report].[cdate])/365<=40,IIf([HelpMaterial].[Metal]=False,[Points Age],Null),Null)
+N0: IIf((Now()-[nr_report].[cdate])/365<=20,IIf([HelpMaterial].[Metal]=False,[Points Age],Null),Null)
+--- Stáří vodovodu z litinových trub
+L10: IIf((Now()-[nr_report].[cdate])/365>80,IIf([HelpMaterial].[MatCode]="9",[Points Age],Null),Null)
+L6: IIf((Now()-[nr_report].[cdate])/365>60 And (Now()-[nr_report].[cdate])/365<=80,IIf([HelpMaterial].[MatCode]="9",[Points Age],Null),Null)
+L4: IIf((Now()-[nr_report].[cdate])/365>40 And (Now()-[nr_report].[cdate])/365<=60,IIf([HelpMaterial].[MatCode]="9",[Points Age],Null),Null)
+L2: IIf((Now()-[nr_report].[cdate])/365>20 And (Now()-[nr_report].[cdate])/365<=40,IIf([HelpMaterial].[MatCode]="9",[Points Age],Null),Null)
+L0: IIf((Now()-[nr_report].[cdate])/365<=20,IIf([HelpMaterial].[MatCode]="9",[Points Age],Null),Null)
+--- Stáří vodovodu z ocelových trub
+O10: IIf((Now()-[nr_report].[cdate])/365>30,IIf([HelpMaterial].[MatCode]="8" Or [HelpMaterial].[MatCode]="20",[Points Age],Null),Null)
+O6: IIf((Now()-[nr_report].[cdate])/365>20 And (Now()-[nr_report].[cdate])/365<=30,IIf([HelpMaterial].[MatCode]="8" Or [HelpMaterial].[MatCode]="20",[Points Age],Null),Null)
+O3: IIf((Now()-[nr_report].[cdate])/365>10 And (Now()-[nr_report].[cdate])/365<=20,IIf([HelpMaterial].[MatCode]="8" Or [HelpMaterial].[MatCode]="20",[Points Age],Null),Null)
+O0: IIf((Now()-[nr_report].[cdate])/365<=10,IIf([HelpMaterial].[MatCode]="8" Or [HelpMaterial].[MatCode]="20",[Points Age],Null),Null)
