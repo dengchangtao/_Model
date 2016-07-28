@@ -11,11 +11,9 @@ Const adOpenDynamic = 2
 
 Dim oFSO
 Dim currFolder
-REM Dim DBPath
-REM Dim AccessApp
 Dim FullPath, ModelPath, Model, ScriptName
 
-Dim connStr, objConn
+Dim connStr, objConn, SQL 'database
 
 Dim wrkSpc 'As Workspace
 Dim dbs 'As DAO.Database
@@ -25,8 +23,7 @@ Dim fs, LogFile, SubLogFile, SelFile 'As Object
 Dim logStr, LogPath, SubLogPath, msg, SelPath, pathArray
 Dim dbsPath, sMode, sModelName, sArgument, sArea, sBuffArea, sBuffSize, sDescription, sDate, sSelection, sScriptName 'As String
 Dim dDate, oDate 'As Date
-Dim SQL
-Dim lev
+Dim lev 'logger level variable
 Dim proceededModel
 Dim Selection, RunTime, ModelName, Mode, MDate, Argument, Area, BufferArea, BufferSize, Description, RunScript
 Dim SelectionIdx, ModeIdx, ModelNameIdx, ArgumentIdx, AreaIdx, BufferAreaIdx, BufferSizeIdx, DescriptionIdx
@@ -43,7 +40,7 @@ BufferSize = "BufferSize"
 Description = "Description"
 RunScript = "RunScript"
 
-'Construct path to model + model name
+'Construct path to model + model name (variable Model)
 FullPath = WScript.Arguments.Item(0)
 pathArray = Split(FullPath, "\")
 For i = LBound(pathArray) To (UBound(pathArray) - 1)
@@ -54,7 +51,8 @@ For i = LBound(pathArray) To (UBound(pathArray) - 1)
 	End If
 Next
 Model = pathArray(UBound(pathArray))
-'Model = "wd_test_20160421.mdb"
+
+'name of calling script is an argument of this file
 ScriptName = WScript.Arguments.Item(1)
 
 'Set current working directory
@@ -71,10 +69,10 @@ UpdateSelPath = ModelPath & "\Selection.txt"
 
 proceededModel = False
 
-'Check ModelRegister Table ------------------
+'Check ModelRegister Table (not in update mode) ------------------
 	
 If TableExists("ModelRegister", ConnStr) And Left(ScriptName, 1) <> "U" Then
-	'Model is registered - check correct columns
+	'Model is registered - check correct columns (recreate whole table)
 	SQL = "CREATE TABLE ModelRegister( " & RunTime & " TIMESTAMP, " & Selection & " INTEGER, " & Mode & " TEXT(50), " & ModelName & " TEXT(255), " & MDate & " TIMESTAMP, " & Argument & " INTEGER, " & Area & " LONGTEXT, " & BufferArea & " LONGTEXT, " & BufferSize & " INTEGER, " & Description & " LONGTEXT, " & RunScript & " TEXT(50))"
 	Set objConn = CreateObject("ADODB.Connection")
 	Set rs = CreateObject("ADODB.Recordset")
@@ -87,7 +85,7 @@ If TableExists("ModelRegister", ConnStr) And Left(ScriptName, 1) <> "U" Then
 	Set rs = Nothing
 	Set objConn = Nothing
 ElseIf Left(ScriptName, 1) <> "U" Then
-	'create table in database
+	'case the table does not exist, create table in model database
 	SQL = "CREATE TABLE ModelRegister( " & RunTime & " TIMESTAMP, " & Selection & " INTEGER, " & Mode & " TEXT(50), " & ModelName & " TEXT(255), " & MDate & " TIMESTAMP, " & Argument & " INTEGER, " & Area & " LONGTEXT, " & BufferArea & " LONGTEXT, " & BufferSize & " INTEGER, " & Description & " LONGTEXT, " & RunScript & " TEXT(50))"
 	Set objConn = CreateObject("ADODB.Connection")
 	Set rs = CreateObject("ADODB.Recordset")
@@ -100,10 +98,12 @@ ElseIf Left(ScriptName, 1) <> "U" Then
 	Set objConn = Nothing
 End If
 
+'Check proper naming of model (MODE_MODELNAME_DATE)
+
 If InStr(Model, "_") > 0 And UBound(Split(Model, "_")) > 1 And Left(ScriptName, 1) <> "U" Then
 	sDate = Split(Split(Model, "_")(2),".")(0)
 	If IsNumeric(sDate) And Len(sDate) > 5 Then
-		'Check ModelRegister Table content --------------------
+		'last part of model name matches - initiate connection to XLS and ModelRegister table in MDB model
 		Set objConn = CreateObject("ADODB.Connection")
 		Set rs = CreateObject("ADODB.Recordset")
 		objConn.Open(ConnStr)
@@ -113,12 +113,13 @@ If InStr(Model, "_") > 0 And UBound(Split(Model, "_")) > 1 And Left(ScriptName, 
 		Set xlBook = xl.Workbooks.Open(currFolder & "\Register.xls")
 		Set xlSheet = xlBook.Worksheets("Register")
 		xl.Visible = True
-		'Process ModerRegister name and variables
+		'process ModelRegister name and variables - check ModelRegister table content
 		sModelName = Split(Model, "_")(1)
 		sMode = Split(Model, "_")(0)
 		dDate = DateSerial(Left(sDate, 4), Mid(sDate, 5, 2), Mid(sDate, 7, 2))
 		sArea = ""
 		sBuffArea = ""
+		'load column numbers in register XLS for corresponding columns in ModelRegister table
 		For i = 1 To xlSheet.UsedRange.Columns.Count
 			If xlSheet.Cells(1, i) = Selection Then
 				SelectionIdx = i
@@ -138,10 +139,15 @@ If InStr(Model, "_") > 0 And UBound(Split(Model, "_")) > 1 And Left(ScriptName, 
 				DescriptionIdx = i
 			End If
 		Next
+		'match model name in XLS 
 		For i = 2 To xlSheet.UsedRange.Rows.Count
 			'MsgBox LCase(xlSheet.Cells(i, ModelNameIdx)) & ", " & LCase(sModelName)
 			If LCase(xlSheet.Cells(i, ModeIdx)) = LCase(sMode) And LCase(xlSheet.Cells(i, ModelNameIdx)) = LCase(sModelName) Then
-				'MsgBox "Connected Row"
+				'matched - begin to read row values - assign to variables
+				sBuffSize = xlSheet.Cells(i, BufferSizeIdx)
+				sArgument = xlSheet.Cells(i, ArgumentIdx)
+				sDescription = xlSheet.Cells(i, DescriptionIdx)
+				sSelection = xlSheet.Cells(i, SelectionIdx)
 				For Each oArea In Split(xlSheet.Cells(i, AreaIdx), ";")
 					If LCase(xlSheet.Cells(i, ModeIdx)) = "cs" Then
 						sArea = sArea & Chr(34) & "C_POVODI_KANAL" & Chr(34) & " = " & oArea & " OR "
@@ -158,50 +164,45 @@ If InStr(Model, "_") > 0 And UBound(Split(Model, "_")) > 1 And Left(ScriptName, 
 				Next
 				sArea = Left(sArea, Len(sArea) - 4)
 				sBuffArea = Left(sBuffArea, Len(sBuffArea) - 4)
-				sBuffSize = xlSheet.Cells(i, BufferSizeIdx)
-				sArgument = xlSheet.Cells(i, ArgumentIdx)
-				sDescription = xlSheet.Cells(i, DescriptionIdx)
-				sSelection = xlSheet.Cells(i, SelectionIdx)
-				' Checking content
+				'checking content of ModelRegister
 				If rs.EOF Then
 					' zero number of records - fill in right values
-					REM msg = "Filling in right values to table 'ModelRegister'"
-					REM Call WriteLog(msg, "d")
-					REM MsgBox dDate
 					SQL = "INSERT INTO ModelRegister (" & RunTime & "," & Selection & "," & Mode & "," & ModelName & "," & MDate & "," & Argument & "," & Area & "," & BufferArea & "," & BufferSize & "," & Description & ", " & RunScript & ") VALUES (Now()," & sSelection & "," & Chr(34) & sMode & Chr(34) & "," & Chr(34) & sModelName & Chr(34) & "," & Chr(34) & dDate & Chr(34) & "," & sArgument & "," & Chr(39) & sArea & Chr(39) & "," & Chr(39) & sBuffArea & Chr(39) & "," & sBuffSize & "," & Chr(34) & sDescription & Chr(34) & ", " & Chr(34) & ScriptName & Chr(34) & ")"
 					objConn.Execute SQL
 					msg = "Model (" & Model & ") succesfully registered ..." & SQL
 					Call WriteLog(msg, "o")
 					proceededModel = True
 				Else
-					'rs.MoveFirst
+					'there are some records in the ModelRegister table
 					rs.MoveLast
 					If rs.RecordCount < 2 Then
+						'find out what is different
+						msg = "In ModelRegister table was found difference from previous run ("
 						If rs.Fields(ModelName).Value <> sModelName Then
-							MsgBox("diff in Model name (rs:" & rs.Fields(ModelName).Value & "/xls:" & sModelName & ")")
+							msg = msg & "model:" & rs.Fields(ModelName).Value & "/xls:" & sModelName & ")"
+							Call WriteLog(msg, "w")
 						End If
 						If rs.Fields(Mode).Value <> sMode Then
-							MsgBox("diff in Mode (rs:" & rs.Fields(Mode).Value & "/xls:" & sMode & ")")
+							msg = msg & "model:" & rs.Fields(Mode).Value & "/xls:" & sMode & ")"
+							Call WriteLog(msg, "w")
 						End If
 						If rs.Fields(MDate).Value <> dDate Then
-							MsgBox("diff in Model date (rs:" & rs.Fields(MDate).Value & "/xls:" & dDate & ")")
+							msg = msg & "model:" & rs.Fields(MDate).Value & "/xls:" & dDate & ")"
+							Call WriteLog(msg, "w")
 						End If
+						'update ModelRegister table with proper values
 						SQL = "UPDATE ModelRegister (" & RunTime & "," & Selection & "," & Mode & "," & ModelName & "," & MDate & "," & Argument & "," & Area & "," & BufferArea & "," & BufferSize & "," & Description & ") VALUES (Now()," & sSelection & "," & Chr(34) & sMode & Chr(34) & "," & Chr(34) & sModelName & Chr(34) & "," & dDate & "," & sArgument & "," & Chr(39) & sArea & Chr(39) & "," & Chr(39) & sBufferArea & Chr(39) & "," & sBufferSize & "," & Chr(34) & sDescription & Chr(34) & ")"
-						REM rs.Edit
-						REM rs.Fields(RunTime).Value = Now()
-						REM rs.Fields(Area).Value = sArea
-						REM rs.Fields(BufferArea).Value = sBuffArea
-						REM rs.Update
 						msg = "Model (" & Model & ") succesfully registered ..."
 						Call WriteLog(msg, "o")
+						proceededModel = True
 					Else
-						' more than one record - please check ModelRegister table
+						'more than one record - please check ModelRegister table
 						msg = "More than one record - please check ModelRegister table in model (" & Model & ")"
-						Call WriteLog(msg, "w")
+						Call WriteLog(msg, "e")
 					End If
 				End If
 			Else
-				'MsgBox "Not connected Row"
+				'it was not found corresponding row in Register.XLS - treated with proceededModel variable below
 			End If
 		Next
 		xlBook.Close
@@ -210,7 +211,7 @@ If InStr(Model, "_") > 0 And UBound(Split(Model, "_")) > 1 And Left(ScriptName, 
 		Set rs = Nothing
 		Set objConn = Nothing
 		If Not proceededModel Then
-			msg = "Model (" & Model & ") was not proceeded, name not found or mode do not match ..."
+			msg = "Model (" & Model & ") was not proceeded, name not found in XLS or mode do not match ..."
 			Call WriteLog(msg, "w")
 		End If
 	Else
@@ -218,7 +219,7 @@ If InStr(Model, "_") > 0 And UBound(Split(Model, "_")) > 1 And Left(ScriptName, 
 		Call WriteLog(msg, "w")
 	End If
 ElseIf Left(ScriptName, 1) = "U" Then
-	'Check ModelRegister Table content --------------------
+	'case of Update - Check ModelRegister Table content
 	Set objConn = CreateObject("ADODB.Connection")
 	Set rs = CreateObject("ADODB.Recordset")
 	objConn.Open(ConnStr)
@@ -265,16 +266,34 @@ ElseIf Left(ScriptName, 1) = "U" Then
 	Next
 	
 	xlBook.Close
-	Model = sModelName & "_" & Year(sModelDate) & Right("0" & Month(sModelDate),2) & Right("0" & Day(sModelDate),2)
-	'MsgBox Model
+	'construct proper name of model
+	Model = sMode & "_" & sModelName & "_" & Year(sModelDate) & Right("0" & Month(sModelDate),2) & Right("0" & Day(sModelDate),2)
 	
-	If sScriptName <> ScriptName Then
-		SQL = "UPDATE ModelRegister SET ModelRegister.Selection = " & sSelection & ", ModelRegister.Argument = " & sArgument & ", ModelRegister.BufferSize = " & sBufferSize & ", ModelRegister.RunScript = " & Chr(34) & ScriptName & Chr(34) & ";"
+	FolderName = Split(ModelPath,"\")(UBound(Split(ModelPath,"\")))
+	ArgumentName = Split(FolderName,"_")(UBound(Split(FolderName,"_")))
+	'MsgBox FolderName & "-" & ArgumentName
+	
+	'if model selected to run, we need to update parameters (selection, argument, buffersize)
+	If sScriptName <> ScriptName And sSelection = 1 Then 'Left(ScriptName, 1) <> Left(ArgumentName,1)
+		If Left(ScriptName, 1) = "C" Or Left(ScriptName, 1) = "R" Then
+			SQL = "UPDATE ModelRegister SET ModelRegister.Selection = " & sSelection & ", ModelRegister.Argument = " & sArgument & ", ModelRegister.BufferSize = " & sBufferSize & ", ModelRegister.RunScript = " & Chr(34) & ScriptName & Chr(34) & ";"
+		Else
+			'in case of update script, the RunScript attribute in ModelRegister table will be updated in the end of proccess (macro MainComparisonUpdate)
+			SQL = "UPDATE ModelRegister SET ModelRegister.Selection = " & sSelection & ", ModelRegister.Argument = " & sArgument & ", ModelRegister.BufferSize = " & sBufferSize & ";"
+		End If
+		'MsgBox SQL
 		objConn.Execute SQL
 		msg = "ModelRegister table was updated " & SQL
+		Call WriteLog(msg, "i")
+	Elseif sScriptName <> ScriptName And sSelection = 0 Then 'Left(ScriptName, 1) <> Left(ArgumentName,1)
+		'SQL = "UPDATE ModelRegister SET ModelRegister.Selection = " & sSelection & ", ModelRegister.Argument = " & sArgument & ", ModelRegister.BufferSize = " & sBufferSize & ";"
+		'MsgBox SQL
+		'objConn.Execute SQL
+		msg = "Model is not selected to run in " & ScriptName & " mode"
+		Call WriteLog(msg, "i")
 	Else
 		msg = "By information from model register model was already updated (RunScript field in ModelRegister table)" 
-		'MsgBox ">" & sScriptName & "-" & ScriptName & "<"
+		'MsgBox ">" & sScriptName & "-" & ScriptName & "<" & vbNewLine & "Selected - " & sSelection
 		Call WriteLog(msg, "w")
 	End If
 	
@@ -287,10 +306,9 @@ Else
 	Call WriteLog(msg, "w")
 End If
 
-'MsgBox sSelection & Left(ScriptName, 1)
+'Creating selection for batch file - if selected: yes ---------------------
 
-'Creating selection for batch file - if selected: yes
-If sSelection = 1 and Left(ScriptName, 1) = "C" Then
+If sSelection = 1 And Left(ScriptName, 1) = "C" Then
 	REM Wscript.Quit sSelection
 	REM SetEnvironmentVariable "Selected", sSelection
 	Set SelFile = oFSO.OpenTextFile(SelPath, ForWriting, True)
@@ -298,10 +316,11 @@ If sSelection = 1 and Left(ScriptName, 1) = "C" Then
 	SelFile.Close
 	msg = "Selected for Comparision model: " & sModelName
 	Call WriteLog(msg, "r")
-ElseIf sSelection = 1 and Left(ScriptName, 1) = "R" Then
+ElseIf sSelection = 1 And Left(ScriptName, 1) = "R" Then
 	msg = "Selected for Registration model: " & sModelName
 	Call WriteLog(msg, "r")
-ElseIf sSelection = 1 and Left(ScriptName, 1) = "U" Then
+ElseIf sSelection = 1 And Left(ScriptName, 1) = "U" And sScriptName <> ScriptName Then
+	'MsgBox ScriptName & vbNewLine & sScriptName & vbNewLine & "created file selection.txt (not for real now)"
 	Set SelFile = oFSO.OpenTextFile(UpdateSelPath, ForWriting, True)
 	SelFile.Write(sSelection)
 	SelFile.Close
@@ -310,6 +329,8 @@ ElseIf sSelection = 1 and Left(ScriptName, 1) = "U" Then
 Else
 	'MsgBox sSelection & ScriptName
 End If
+
+'End of script Register.vbs - rest is only used functions -------------------------
 
 Function WriteLog(msg, lev)
 	If  lev = "o" Then

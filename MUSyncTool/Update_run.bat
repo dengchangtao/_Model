@@ -67,13 +67,14 @@ ECHO MIKE URBAN directory %MU_PATH%
 ECHO Run update procedure - start iterating in %A_PATH%Temp directory 
 FOR /f "tokens=*" %%G IN ('dir /b /o:n /ad %A_PATH%Temp') do (
 	ECHO -check model registration: Model.mdb in directory %%G
-	Start /wait %VBS_PATH% %A_PATH%Register.vbs %A_PATH%Temp\%%G\Model.mdb %~n0.bat
+	IF EXIST "%A_PATH%Temp\%%G\Selection.txt" DEL "%A_PATH%Temp\%%G\Selection.txt"
+	Start /wait %VBS_PATH% %A_PATH%Register.vbs "%A_PATH%Temp\%%G\Model.mdb" %~n0.bat
 	IF EXIST %A_PATH%Temp\%%G\Selection.txt ( 
 		SETLOCAL ENABLEDELAYEDEXPANSION
 		SET inner=%%G 
 		SET mode=!inner:~0,2!
 		SET argument=!inner:~-2,-1!
-		SET model=!inner:~3,-4!
+		SET model=!inner:~0,-4!
 		ECHO model name: !model!, mode is !mode!, argument is !argument!, last run procedure !inner:~-3,-2! - %%G
 		IF %LOG% == 1 ECHO %DD%.%MM%.%YYYY% %Time:~0,2%:%Time:~3,2%:%Time:~6,2% ; !model! ; %modulename% ; %~n0 ; %levelname% ; 2 ; * Checking model registration with model: Model.mdb >>%Log_PATH%
 		IF %LOG% == 1 ECHO %DD%.%MM%.%YYYY% %Time:~0,2%:%Time:~3,2%:%Time:~6,2% ; !model! ; %modulename% ; %~n0 ; %levelname% ; 2 ; * Checking model registration with model: Model.mdb >%SubLog_PATH%
@@ -83,10 +84,11 @@ FOR /f "tokens=*" %%G IN ('dir /b /o:n /ad %A_PATH%Temp') do (
 	IF NOT EXIST %A_PATH%Temp\%%G\Selection.txt ( 
 		IF %LOG% == 1 ECHO %DD%.%MM%.%YYYY% %Time:~0,2%:%Time:~3,2%:%Time:~6,2% ; %%G ; %modulename% ; %~n0 ; %levelname% ; 2 ; * Checking model registration with model: Model.mdb >>%Log_PATH%
 		IF %LOG% == 1 ECHO %DD%.%MM%.%YYYY% %Time:~0,2%:%Time:~3,2%:%Time:~6,2% ; %%G ; %modulename% ; %~n0 ; %levelname% ; 2 ; * Checking model registration with model: Model.mdb >%SubLog_PATH%
-		IF %LOG% == 1 ECHO %DD%.%MM%.%YYYY% %Time:~0,2%:%Time:~3,2%:%Time:~6,2% ; %%G ; %modulename% ; %~n0 ; %levelnamewar% ; 2 ; Model: Model.mdb not selected to run, skipping ... >>%Log_PATH% 
+		IF %LOG% == 1 ECHO %DD%.%MM%.%YYYY% %Time:~0,2%:%Time:~3,2%:%Time:~6,2% ; %%G ; %modulename% ; %~n0 ; %levelnamewar% ; 2 ; Model: Model.mdb not selected to run or it was already updated, skipping ... >>%Log_PATH% 
 		REM IF %LOG% == 1 ECHO %DD%.%MM%.%YYYY% %Time:~0,2%:%Time:~3,2%:%Time:~6,2% ; %modulename% ; %~n0 ; %levelnamewar% ; 2 ; Model: Model.mdb not selected to run, skipping ... >>%SubLog_PATH% 
 	)
-	REM PAUSE
+	ENDLOCAL
+	PAUSE
 	
 	:Outputs
 	IF EXIST %A_PATH%Temp\%%G\Selection.txt (
@@ -97,7 +99,7 @@ FOR /f "tokens=*" %%G IN ('dir /b /o:n /ad %A_PATH%Temp') do (
 		REM IF %LOG% == 1 ECHO %DD%.%MM%.%YYYY% %Time:~0,2%:%Time:~3,2%:%Time:~6,2% ; %modulename% ; %~n0 ; %levelnamechap% ; 7 ; Model: Backed up %A_PATH%Outputs\Model.mdb as Model_comparison.mdb ... >>%Log_PATH%
 	)
 	REM ----- at this moment we can start with appending to sublogfile2 - logfile in Outputs folder
-	PAUSE
+	REM PAUSE
 	
 	:PrepXML
 	IF EXIST %A_PATH%Outputs\Selection.txt (
@@ -156,6 +158,10 @@ FOR /f "tokens=*" %%G IN ('dir /b /o:n /ad %A_PATH%Temp') do (
 		IF %LOG% == 1 ECHO %DD%.%MM%.%YYYY% %Time:~0,2%:%Time:~3,2%:%Time:~6,2% ; !model! ; %modulename% ; %~n0 ; %levelname% ; 7 ; Starting PointAssignment.py >>%Log_PATH%
 		IF %LOG% == 1 ECHO %DD%.%MM%.%YYYY% %Time:~0,2%:%Time:~3,2%:%Time:~6,2% ; !model! ; %modulename% ; %~n0 ; %levelname% ; 7 ; Starting PointAssignment.py >>%SubLog_PATH%
 		Start /wait %PY_PATH% %A_PATH%PointAssignment.py %~n0.bat
+    
+    IF %LOG% == 1 ECHO %DD%.%MM%.%YYYY% %Time:~0,2%:%Time:~3,2%:%Time:~6,2% ; !model! ; %modulename% ; %~n0 ; %levelname% ; 7 ; Starting mw_Junction_DMT.py >>%Log_PATH%
+		IF %LOG% == 1 ECHO %DD%.%MM%.%YYYY% %Time:~0,2%:%Time:~3,2%:%Time:~6,2% ; !model! ; %modulename% ; %~n0 ; %levelname% ; 7 ; Starting mw_Junction_DMT.py >>%SubLog_PATH%
+    Start /wait %PY_PATH% %A_PATH%mw_Junction_DMT.py %~n0.bat
 	)
 	REM PAUSE
 	
@@ -280,7 +286,7 @@ FOR /f "tokens=*" %%G IN ('dir /b /o:n /ad %A_PATH%Temp') do (
 	IF EXIST %A_PATH%Outputs\Selection.txt (
 		IF %LOG% == 1 ECHO %DD%.%MM%.%YYYY% %Time:~0,2%:%Time:~3,2%:%Time:~6,2% ; !model! ; %modulename% ; %~n0 ; %levelnamechap% ; 10 ; Output transfer to Temp >>%Log_Path%
 		IF %LOG% == 1 ECHO %DD%.%MM%.%YYYY% %Time:~0,2%:%Time:~3,2%:%Time:~6,2% ; !model! ; %modulename% ; %~n0 ; %levelname% ; 10 ; Starting outputs transfer to %A_PATH%Temp >>%Log_Path%
-		Del %A_PATH%Outputs\Selection.txt
+		Del "%A_PATH%Outputs\Selection.txt"
     Start /wait %VBS_PATH% %A_PATH%CopyToTemp.vbs
 		
 		IF %LOG% == 1 ECHO %DD%.%MM%.%YYYY% %Time:~0,2%:%Time:~3,2%:%Time:~6,2% ; !model! ; %modulename% ; %~n0 ; %levelname% ; 10 ; Deleting source directory from comaprison %A_PATH%Temp\%%G >>%Log_Path%
