@@ -5,3 +5,10 @@ Water Distribution Tools based on MIKE URBAN (EPANET compatible) models. Used fo
 - Bookmark export from ArcGIS maps
 - Extract centroids from polyline features
 - QGIS testing
+
+## Geocode
+- XLS file with built in VBA functions allowing geocode given address
+  - google geocode
+  - mapy geocode
+  - osm geocode
+- will be redone once I completely switch to linux
